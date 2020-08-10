@@ -1,0 +1,13 @@
+disk1: 
+  service: Disk
+  root: "tmp/disk1"
+
+disk2:
+  service: Disk
+  root: "tmp/disk2"
+
+horcrux:
+  service: Horcrux
+  shares: 5
+  threshold: 3
+  services: [ disk1, disk2 ]
