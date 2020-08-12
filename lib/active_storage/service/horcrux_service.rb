@@ -45,6 +45,10 @@ module ActiveStorage
       end
     end
 
+    def download_chunk(keys, range)
+      raise ActiveStorage::UnpreviewableError, "Horcrux does not implement ranged download yet"
+    end
+
     def delete(*args)
       perform_across_services(:delete, *args)
     end
@@ -59,23 +63,31 @@ module ActiveStorage
     end
 
     def delete_prefixed(*args)
-      perform_across_services(:delete_prefixed, *args)
+      raise ActiveStorage::UnpreviewableError, "Horcrux does not implement delete by prefix yet"
     end
 
-    def download_chunk(*args)
-      services[0].download_chunk(*args)
-    end
-
-    def exist?(*args)
-      services[0].exist?(*args)
+    def exist?(keys)
+      localKeys = keys.kind_of?(Array) ? keys : [keys]
+      i = 0
+      while i < localKeys.count
+        j = 0
+	while j < services.count
+          if services[j].exist?(localKeys[i])
+	    return true
+	  end
+	  j = j + 1
+	end
+	i = i + 1
+      end
+      return false
     end
 
     def url(*args)
-      services[0].url(*args)
+      raise ActiveStorage::UnpreviewableError, "Horcrux does not implement url yet"
     end
 
     def path_for(*args)
-      services[0].path_for(*args)
+      raise ActiveStorage::UnpreviewableError, "Horcrux does not implement path_for yet"
     end
 
     private

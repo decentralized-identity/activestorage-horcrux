@@ -122,6 +122,24 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  expect { SERVICE.download([key1ofA,key2ofB]) }.to raise_error(TSS::ArgumentError,/do not match/)
 		end
 
+		it "can determine if shares exist for given keys" do
+		  key_generator = UniqueKeyGenerator.new
+		  key1ofA = key_generator.generate
+		  key2ofA = key_generator.generate
+		  SERVICE.upload([key1ofA,key2ofA],1,Base64.encode64(FIXTURE_DATA))
+		  expect(SERVICE.exist?([key1ofA,key2ofA])).to be true
+		end
+
+		it "can determine if shares DO NOT exist for given keys" do
+		  key_generator = UniqueKeyGenerator.new
+		  key1ofA = key_generator.generate
+		  key2ofA = key_generator.generate
+		  key1ofB = key_generator.generate
+		  key2ofB = key_generator.generate
+		  SERVICE.upload([key1ofA,key2ofA],1,Base64.encode64(FIXTURE_DATA))
+		  expect(SERVICE.exist?([key1ofB,key2ofB])).to be false
+		end
+
 		it "cannot upload IO stream" do
 		  key_generator = FixedKeyGenerator.new
 		  data = StringIO.new(Base64.encode64(FIXTURE_DATA))
@@ -134,6 +152,13 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  data = ""
 		  SERVICE.download([key_generator.generate]) { |s| data = Base64.decode64(s) }
 		  expect(data).to be == FIXTURE_DATA
+		end
+
+		it "cannot download chunk yet" do
+		  key_generator = FixedKeyGenerator.new
+		  key = key_generator.generate
+		  SERVICE.upload([key],1,Base64.encode64(FIXTURE_DATA))
+		  expect { SERVICE.download_chunk([key],{ begin: 1, size: 100 }) }.to raise_error(ActiveStorage::UnpreviewableError,/not implement/)
 		end
 	end
 else
