@@ -121,6 +121,20 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  SERVICE.upload([key1ofB,key2ofB],1,Base64.encode64(FIXTURE_DATA))
 		  expect { SERVICE.download([key1ofA,key2ofB]) }.to raise_error(TSS::ArgumentError,/do not match/)
 		end
+
+		it "cannot upload IO stream" do
+		  key_generator = FixedKeyGenerator.new
+		  data = StringIO.new(Base64.encode64(FIXTURE_DATA))
+		  expect { SERVICE.upload([key_generator.generate], 1, data) }.to raise_error(ActiveStorage::UnpreviewableError,/cannot handle/)
+		end
+
+		it "can handle download to block" do
+		  key_generator = FixedKeyGenerator.new
+		  SERVICE.upload([key_generator.generate], 1, Base64.encode64(FIXTURE_DATA))
+		  data = ""
+		  SERVICE.download([key_generator.generate]) { |s| data = Base64.decode64(s) }
+		  expect(data).to be == FIXTURE_DATA
+		end
 	end
 else
   puts "Skipping Horcrux Storage Service tests because no Horcrux configuration was supplied"

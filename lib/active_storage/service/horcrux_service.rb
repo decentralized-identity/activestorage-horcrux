@@ -2,11 +2,14 @@
 
 require "active_support/core_ext/module/delegation"
 
+# frozen_string_literal: true
+
 module ActiveStorage
   class Service::HorcruxService < Service
     attr_reader :services
 
     def upload(keys,threshold,data)
+      raise ActiveStorage::UnpreviewableError, "Horcrux upload cannot handle IO stream, only String" if !data.kind_of?(String)
       shares = TSS.split(secret: data,threshold: threshold,num_shares: keys.count)
       i = 0
       servicesamples = []
@@ -21,7 +24,7 @@ module ActiveStorage
       end
     end
 
-    def download(keys)
+    def download(keys,&block)
       shares = []
       i = 0
       while i < keys.count
@@ -35,7 +38,11 @@ module ActiveStorage
 	i = i + 1
       end
       secret = TSS.combine(shares: shares)
-      return secret[:secret]
+      if block_given?
+        yield secret[:secret]
+      else
+        return secret[:secret]
+      end
     end
 
     def delete(*args)
