@@ -1,47 +1,55 @@
 # frozen_string_literal: true
 
+require 'tss'
+require 'base64'
 require "active_support/core_ext/module/delegation"
 
 # frozen_string_literal: true
 
 module ActiveStorage
   class Service::HorcruxService < Service
-    attr_reader :services
+    attr_reader :services, :shares, :threshold
 
-    def upload(keys,threshold,data)
-      raise ActiveStorage::UnpreviewableError, "Horcrux upload cannot handle IO stream, only String" if !data.kind_of?(String)
-      shares = TSS.split(secret: data,threshold: threshold,num_shares: keys.count)
+    def upload(key,io,checksum: nil, **options)
+      data = io.tap(&:rewind).read
+      base64Data = Base64.encode64(data)
+      shards = TSS.split(secret: base64Data,threshold: @threshold,num_shares: @shares)
       i = 0
       servicesamples = []
-      while i < shares.count
+      file = Tempfile.new(key,"/tmp")
+      while i < shards.count
         if servicesamples.empty?
 	  servicesamples = services[0..-1]
 	end
         svc = servicesamples.sample
-        svc.upload(keys[i],StringIO.new(shares[i]))
+	shardkey = SecureRandom.base58(key.length)
+        svc.upload shardkey, StringIO.new(shards[i]), checksum: nil, **options
+	file.write("#{shardkey},")
 	servicesamples.delete(svc)
 	i = i + 1
       end
+      file.close
     end
 
     def download(keys,&block)
-      shares = []
+      shardkeys = keys.split(',')
+      shards = []
       i = 0
-      while i < keys.count
+      while i < shardkeys.count
         j = 0
 	while j < services.count
-          if services[j].exist?(keys[i])
-	    shares << services[j].download(keys[i])
+          if services[j].exist?(shardkeys[i])
+	    shards << services[j].download(shardkeys[i])
 	  end
 	  j = j + 1
 	end
 	i = i + 1
       end
-      secret = TSS.combine(shares: shares)
+      secret = TSS.combine(shares: shards)
       if block_given?
-        yield secret[:secret]
+        yield Base64.decode64(secret[:secret])
       else
-        return secret[:secret]
+        return Base64.decode64(secret[:secret])
       end
     end
 
@@ -55,11 +63,14 @@ module ActiveStorage
 
     # Stitch together from named services.
     def self.build(services:, shares:, threshold:, configurator:, **options) #:nodoc:
-      new services: services.collect { |name| configurator.build name }
+      new \
+        shares: shares,
+	threshold: threshold,
+        services: services.collect { |name| configurator.build name }
     end
 
-    def initialize(services:)
-      @services = services
+    def initialize(shares:,threshold:,services:)
+      @shares, @threshold, @services = shares, threshold, services
     end
 
     def delete_prefixed(*args)
@@ -67,7 +78,7 @@ module ActiveStorage
     end
 
     def exist?(keys)
-      localKeys = keys.kind_of?(Array) ? keys : [keys]
+      localKeys = keys.split(',')
       i = 0
       while i < localKeys.count
         j = 0
