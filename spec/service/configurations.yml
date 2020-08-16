@@ -10,4 +10,5 @@ horcrux:
   service: Horcrux
   shares: 5
   threshold: 3
+  prefix: true
   services: [ disk1, disk2 ]

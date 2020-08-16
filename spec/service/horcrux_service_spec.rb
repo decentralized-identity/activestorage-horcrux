@@ -34,8 +34,10 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 
 		it "can delete" do
 		  key_generator = FixedKeyGenerator.new
-		  SERVICE.delete key_generator.generate
-		  expect(SERVICE.exist?(key_generator.generate)).to be false
+		  SERVICE.upload(key_generator.generate, StringIO.new(FIXTURE_DATA))
+		  keys = getKeys(key_generator.generate)
+		  SERVICE.delete keys
+		  expect(SERVICE.exist?(keys)).to be false
 		end
 
 		it "can split" do

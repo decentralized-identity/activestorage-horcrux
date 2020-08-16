@@ -8,7 +8,7 @@ require "active_support/core_ext/module/delegation"
 
 module ActiveStorage
   class Service::HorcruxService < Service
-    attr_reader :services, :shares, :threshold
+    attr_reader :services, :shares, :threshold, :prefix
 
     def upload(key,io,checksum: nil, **options)
       data = io.tap(&:rewind).read
@@ -23,7 +23,8 @@ module ActiveStorage
 	end
         svc = servicesamples.sample
 	shardkey = SecureRandom.base58(key.length)
-        svc.upload shardkey, StringIO.new(shards[i]), checksum: nil, **options
+	shardkey = svc[:name] + ':' + shardkey if prefix
+        svc[:service].upload shardkey, StringIO.new(shards[i]), checksum: nil, **options
 	file.write("#{shardkey},")
 	servicesamples.delete(svc)
 	i = i + 1
@@ -38,8 +39,8 @@ module ActiveStorage
       while i < shardkeys.count
         j = 0
 	while j < services.count
-          if services[j].exist?(shardkeys[i])
-	    shards << services[j].download(shardkeys[i])
+          if services[j][:service].exist?(shardkeys[i])
+	    shards << services[j][:service].download(shardkeys[i])
 	  end
 	  j = j + 1
 	end
@@ -57,20 +58,33 @@ module ActiveStorage
       raise ActiveStorage::UnpreviewableError, "Horcrux does not implement ranged download yet"
     end
 
-    def delete(*args)
-      perform_across_services(:delete, *args)
+    def delete(keys)
+      shardkeys = keys.split(',')
+      shards = []
+      i = 0
+      while i < shardkeys.count
+        j = 0
+	while j < services.count
+          if services[j][:service].exist?(shardkeys[i])
+	    services[j][:service].delete(shardkeys[i])
+	  end
+	  j = j + 1
+	end
+	i = i + 1
+      end
     end
 
     # Stitch together from named services.
-    def self.build(services:, shares:, threshold:, configurator:, **options) #:nodoc:
+    def self.build(services:, shares:, threshold:, prefix:, configurator:, **options) #:nodoc:
       new \
         shares: shares,
 	threshold: threshold,
-        services: services.collect { |name| configurator.build name }
+	prefix: prefix,
+        services: services.collect { |name| { :name => name, :service => configurator.build(name) } }
     end
 
-    def initialize(shares:,threshold:,services:)
-      @shares, @threshold, @services = shares, threshold, services
+    def initialize(shares:,threshold:,prefix:,services:)
+      @shares, @threshold, @prefix, @services = shares, threshold, prefix, services
     end
 
     def delete_prefixed(*args)
@@ -83,7 +97,7 @@ module ActiveStorage
       while i < localKeys.count
         j = 0
 	while j < services.count
-          if services[j].exist?(localKeys[i])
+          if services[j][:service].exist?(localKeys[i])
 	    return true
 	  end
 	  j = j + 1
