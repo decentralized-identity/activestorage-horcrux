@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/johncallahan/activestorage-horcrux.svg?branch=master)](https://travis-ci.org/johncallahan/activestorage-horcrux)
 
-A ActiveStorage service option that uploads shares *across* one or
+An ActiveStorage service option that uploads shares *across* one or
 more other storage services using Shamir Secret Sharing (via the
 [tss-rb gem](https://github.com/grempe/tss-rb)).  Use it in your
 storage.yml file.  It is not a mirror, but can be named as a storage
