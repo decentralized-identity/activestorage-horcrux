@@ -2,7 +2,7 @@
 
 require 'tss'
 require 'base64'
-require "active_support/core_ext/module/delegation"
+require 'active_support/core_ext/module/delegation'
 
 # frozen_string_literal: true
 
@@ -15,21 +15,31 @@ module ActiveStorage
       base64Data = Base64.encode64(data)
       shards = TSS.split(secret: base64Data,threshold: @threshold,num_shares: @shares)
       i = 0
+      main_key = ""
       servicesamples = []
-      file = Tempfile.new(key,"/tmp")
       while i < shards.count
         if servicesamples.empty?
 	  servicesamples = services[0..-1]
 	end
         svc = servicesamples.sample
 	shardkey = SecureRandom.base58(key.length)
-	shardkey = svc[:name] + ':' + shardkey if prefix
-        svc[:service].upload shardkey, StringIO.new(shards[i]), checksum: nil, **options
-	file.write("#{shardkey},")
+
+	scblob = Class.new Blob
+	scblob.service = svc[:service]
+	iofile = Tempfile.new(shardkey,"/tmp")
+	iofile.write(shards[i])
+	iofile.rewind
+	myblob = scblob.create_and_upload! io:iofile, filename: ""
+	iofile.close
+	iofile.unlink
+
+	main_key = main_key + "#{myblob.reload.key},"
 	servicesamples.delete(svc)
 	i = i + 1
       end
-      file.close
+      main_blob = Blob.find_by_key(key)
+      main_blob.key = main_key
+      main_blob.save!
     end
 
     def download(keys,&block)
@@ -39,11 +49,27 @@ module ActiveStorage
       while i < shardkeys.count
         j = 0
 	while j < services.count
-          if services[j][:service].exist?(shardkeys[i])
-	    shards << services[j][:service].download(shardkeys[i])
+	  begin
+            if services[j][:service].exist?(shardkeys[i])
+	      shard = services[j][:service].download(shardkeys[i])
+	      shards << shard
+	      break
+	    end
+	    j = j + 1
+	  rescue NotImplementedError
+	    begin
+	      shard = services[j][:service].download(shardkeys[i]).to_s
+	      if shard.match(/^invalid/)
+	        j = j + 1
+	      else
+	        shards << shard
+		break
+	      end
+	    rescue RestClient::BadRequest
+	      j = j + 1
+	    end
 	  end
-	  j = j + 1
-	end
+        end
 	i = i + 1
       end
       secret = TSS.combine(shares: shards)

@@ -60,6 +60,9 @@ Bump the version in lib/active_storage/service/version.rb and then
 
 # To-do/Issues
 
-* using Tempfile for passing back keys (yuck)
+* ~~using Tempfile for passing back keys (yuck)~~
+* strip tss header to avoid correlation
 * size limitations (by the tss-rb gem)
 * intercept and convert TSS errors to gem-specific errors
+* background storage to avoid timestamp correlation
+* fix prefixing
