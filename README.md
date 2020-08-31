@@ -66,3 +66,4 @@ Bump the version in lib/active_storage/service/version.rb and then
 * intercept and convert TSS errors to gem-specific errors
 * background storage to avoid timestamp correlation
 * fix prefixing
+* ~~rspec tests broken until blobstub fixed~~

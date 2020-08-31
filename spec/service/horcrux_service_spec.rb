@@ -10,13 +10,8 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		SERVICE = ActiveStorage::Service.configure(:horcrux, SERVICE_CONFIGURATIONS)
 		FIXTURE_DATA  = "\211PNG\r\n\032\n\000\000\000\rIHDR\000\000\000\020\000\000\000\020\001\003\000\000\000%=m\"\000\000\000\006PLTE\000\000\000\377\377\377\245\331\237\335\000\000\0003IDATx\234c\370\377\237\341\377_\206\377\237\031\016\2603\334?\314p\1772\303\315\315\f7\215\031\356\024\203\320\275\317\f\367\201R\314\f\017\300\350\377\177\000Q\206\027(\316]\233P\000\000\000\000IEND\256B`\202".dup.force_encoding(Encoding::BINARY)
 
-		def getKeys(key)
-		  filename = Dir.glob("/tmp/" + key + "*")[0]
-		  file = File.open(filename)
-		  keys = file.read
-		  file.close
-		  File.delete(filename)
-		  return keys
+		before do
+		  stub_const('ActiveStorage::Blob', BlobStub)
 		end
   
 		it "has configurations available" do
@@ -27,17 +22,16 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 
 		it "can upload and download" do
 		  key_generator = FixedKeyGenerator.new
-		  SERVICE.upload(key_generator.generate, StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key_generator.generate)
-		  expect(SERVICE.download(keys)).to be == FIXTURE_DATA
+		  key = key_generator.generate
+		  SERVICE.upload(key, StringIO.new(FIXTURE_DATA))
+		  expect(SERVICE.download($my_blob_key)).to be == FIXTURE_DATA
 		end
 
 		it "can delete" do
 		  key_generator = FixedKeyGenerator.new
 		  SERVICE.upload(key_generator.generate, StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key_generator.generate)
-		  SERVICE.delete keys
-		  expect(SERVICE.exist?(keys)).to be false
+		  SERVICE.delete $my_blob_key
+		  expect(SERVICE.exist?($my_blob_key)).to be false
 		end
 
 		it "can split" do
@@ -69,9 +63,8 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key_generator = UniqueKeyGenerator.new
 		  key = key_generator.generate
 		  SERVICE.upload(key,StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key)
-		  secret = SERVICE.download(keys)
-		  keys.split(',').each do |k|
+		  secret = SERVICE.download($my_blob_key)
+		  $my_blob_key.split(',').each do |k|
 		    SERVICE.delete(k)
 		  end
 		  expect(secret).to be == FIXTURE_DATA
@@ -81,9 +74,8 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key_generator = UniqueKeyGenerator.new
 		  key = key_generator.generate
 		  SERVICE.upload(key,StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key)
-		  secret = SERVICE.download(keys)
-		  keys.split(',').each do |k|
+		  secret = SERVICE.download($my_blob_key)
+		  $my_blob_key.split(',').each do |k|
 		    SERVICE.delete(k)
 		  end
 		  expect(secret).to be == FIXTURE_DATA
@@ -93,7 +85,7 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key_generator = UniqueKeyGenerator.new
 		  key = key_generator.generate
 		  SERVICE.upload(key,StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key).split(',').sample(4).shuffle.join(',')
+		  keys = $my_blob_key.split(',').sample(4).shuffle.join(',')
 		  secret = SERVICE.download(keys)
 		  keys.split(',').each do |k|
 		    SERVICE.delete(k)
@@ -105,7 +97,7 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key_generator = UniqueKeyGenerator.new
 		  key = key_generator.generate
 		  SERVICE.upload(key,StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key).split(',').sample(2).shuffle.join(',')
+		  keys = $my_blob_key.split(',').sample(2).shuffle.join(',')
 		  expect { SERVICE.download(keys) }.to raise_error(TSS::ArgumentError,/invalid shares, fewer than threshold/)
 		end
 
@@ -114,7 +106,7 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key = key_generator.generate
 		  notAkey = key_generator.generate
 		  SERVICE.upload(key,StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key).split(',').sample(2)
+		  keys = $my_blob_key.split(',').sample(2)
 		  keys << notAkey
 		  expect { SERVICE.download(keys.join(',')) }.to raise_error(TSS::ArgumentError,/invalid shares, fewer than threshold/)
 		end
@@ -123,8 +115,7 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key_generator = UniqueKeyGenerator.new
 		  key = key_generator.generate
 		  SERVICE.upload(key,StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key)
-		  expect(SERVICE.exist?(keys)).to be true
+		  expect(SERVICE.exist?($my_blob_key)).to be true
 		end
 
 		it "can determine if shares DO NOT exist for given keys" do
@@ -143,8 +134,7 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key_generator = FixedKeyGenerator.new
 		  SERVICE.upload(key_generator.generate, StringIO.new(FIXTURE_DATA))
 		  data = ""
-		  keys = getKeys(key_generator.generate)
-		  SERVICE.download(keys) { |s| data = s }
+		  SERVICE.download($my_blob_key) { |s| data = s }
 		  expect(data).to be == FIXTURE_DATA
 		end
 
@@ -152,8 +142,7 @@ if SERVICE_CONFIGURATIONS[:horcrux]
 		  key_generator = FixedKeyGenerator.new
 		  key = key_generator.generate
 		  SERVICE.upload(key,StringIO.new(FIXTURE_DATA))
-		  keys = getKeys(key_generator.generate)
-		  expect { SERVICE.download_chunk(keys,{ begin: 1, size: 100 }) }.to raise_error(ActiveStorage::UnpreviewableError,/not implement/)
+		  expect { SERVICE.download_chunk($my_blob_key,{ begin: 1, size: 100 }) }.to raise_error(ActiveStorage::UnpreviewableError,/not implement/)
 		end
 	end
 else
